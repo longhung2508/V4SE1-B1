@@ -991,9 +991,9 @@ const PASSAGE_BANK = [
 ];
 
 const MODE_INFO = {
-  repeat:        { label:"A. Repeat",                skill:"speaking",  time:6,   ring:"var(--speaking)",  pool:REPEAT_BANK,     round:8 },
-  build:         { label:"B. Sentence Build",         skill:"speaking",  time:8,   ring:"var(--speaking)",  pool:BUILD_BANK,      round:8 },
-  conversations: { label:"C. Conversations",          skill:"listening", time:10,  ring:"var(--listening)", pool:CONV_BANK,       round:8 },
+  repeat:        { label:"A. Repeat",                skill:"speaking",  time:15,  ring:"var(--speaking)",  pool:REPEAT_BANK,     round:8 },
+  build:         { label:"B. Sentence Build",         skill:"speaking",  time:15,  ring:"var(--speaking)",  pool:BUILD_BANK,      round:8 },
+  conversations: { label:"C. Conversations",          skill:"listening", time:15,  ring:"var(--listening)", pool:CONV_BANK,       round:8 },
   completion:    { label:"D. Sentence Completion",    skill:"reading",   time:25,  ring:"var(--reading)",   pool:COMPLETION_BANK, round:8 },
   dictation:     { label:"E. Dictation",              skill:"listening", time:25,  ring:"var(--listening)", secondSkill:"writing", pool:DICTATION_BANK, round:8 },
   passage:       { label:"F. Passage Reconstruction", skill:"reading",   time:30,  ring:"var(--reading)",   secondSkill:"writing", pool:PASSAGE_BANK, round:4, writeTime:90 }
@@ -1346,6 +1346,7 @@ function renderDots(){
 function clearTimers(){
   clearTimeout(state.timer); state.timer=null;
   clearInterval(state.ringTimer); state.ringTimer=null;
+  clearTimeout(state.silenceTimer); state.silenceTimer=null;
   if(state.recognition){ try{state.recognition.stop();}catch(e){} }
 }
 
@@ -1566,7 +1567,7 @@ function renderQuestion(){
     // (or wasn't) by the time it hits 0 is what gets scored.
     state.activateFn = ()=>{
       startRing(info.time, ()=> finalizeSpeakingOnExpiry(text, info));
-      const v = speak(text, status=> applySpeechStatus('voiceTag', status), ()=> beginSpeakingCapture(text, info));
+      const v = speak(text, status=> applySpeechStatus('voiceTag', status), ()=> beginSpeakingCapture(text, info, undefined, undefined, 6000));
       const vt = document.getElementById('voiceTag');
       if(vt) vt.textContent = v ? `🔊 ${v.lang} — ${v.name}` : '🔊 default browser voice';
     };
@@ -1632,18 +1633,17 @@ function renderQuestion(){
       <div class="mode-label">Conversations · Listening</div>
       ${ringHtml}
       <div class="prompt-area">
-        <div class="hidden-hint" id="hh">Plays automatically — the question appears once it ends, answer briefly. One timer for the whole question (${info.time}s).</div>
+        <div class="hidden-hint" id="hh">Plays automatically — listen to the conversation, then the question is read aloud. Answer briefly right after. One timer for the whole question (${info.time}s).</div>
       </div>
       <div class="voice-tag" id="voiceTag">🔊 Playing conversation...</div>
       <div class="dialogue" id="dialogueBox" style="display:none"></div>
-      <div class="prompt-area" id="qArea" style="display:none">
-        <div class="sentence" id="qText"></div>
-      </div>
       <div class="hint-panel" id="hintPanel"></div>
       <div class="feedback" id="fb"></div>`;
     updateHintPanel(); // keep showing the previous item's hint until this one is actually played
     // ONE countdown for the entire question — conversation playback, the
-    // question reveal, and speech capture all happen inside it.
+    // spoken question, and speech capture all happen inside it. The
+    // question is read aloud (matches the real listening-only format) —
+    // it is never shown as on-screen text during the response window.
     state.activateFn = ()=>{
       startRing(info.time, ()=> finalizeSpeakingOnExpiry(item.answers[0], info));
       let convOk = true;
@@ -1653,12 +1653,14 @@ function renderQuestion(){
           const [sp, ...rest] = l.split(':');
           return `<div class="ln"><span class="sp">${sp}:</span>${rest.join(':')}</div>`;
         }).join('');
-        if(convOk) document.getElementById('voiceTag').textContent = '';
-        document.getElementById('qArea').style.display='flex';
-        document.getElementById('qText').textContent = item.question;
+        const vt = document.getElementById('voiceTag');
+        if(vt) vt.textContent = '❓ Question...';
         state.lastPlayedItem = { en:`${item.question} → ${item.answers[0]}`, vi:item.vi };
         updateHintPanel();
-        setTimeout(()=> beginSpeakingCapture(item.answers[0], info, undefined, item.answers), 500);
+        speak(item.question, status=>{ if(status!=='ok') convOk=false; applySpeechStatus('voiceTag', status); }, ()=>{
+          if(vt && convOk) vt.textContent = '';
+          beginSpeakingCapture(item.answers[0], info, undefined, item.answers);
+        });
       }, status=>{
         if(status!=='ok') convOk = false;
         applySpeechStatus('voiceTag', status);
@@ -1825,7 +1827,7 @@ function submitDictation(item, info, timedOut, typedValue){
 // question's single countdown (started back in renderQuestion) to pick up
 // when it expires. Does NOT touch the timer and does NOT advance the
 // question itself — only that one countdown does that, per question.
-function beginSpeakingCapture(targetText, info, buildCorrect, acceptList){
+function beginSpeakingCapture(targetText, info, buildCorrect, acceptList, silenceMs){
   const fb = document.getElementById('fb');
   const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
 
@@ -1836,13 +1838,24 @@ function beginSpeakingCapture(targetText, info, buildCorrect, acceptList){
         const rec = new SR();
         state.recognition = rec;
         rec.lang='en-US'; rec.interimResults=false; rec.maxAlternatives=1;
+        let speechStarted = false;
+        if(silenceMs){
+          // Versant Part A rule: the candidate must start speaking within
+          // silenceMs of the prompt ending, even though the full response
+          // window (info.time) is longer — auto-advance early if still
+          // silent when this fires.
+          state.silenceTimer = setTimeout(()=>{
+            if(!speechStarted){ try{rec.stop();}catch(e){} finalizeSpeakingOnExpiry(targetText, info); }
+          }, silenceMs);
+        }
+        rec.onspeechstart = ()=>{ speechStarted = true; clearTimeout(state.silenceTimer); state.silenceTimer=null; };
         rec.onresult = (e)=>{
           const said = e.results[0][0].transcript;
           state.captured = { said, buildCorrect, acceptList };
           releaseSharedMic();
           if(fb){ fb.textContent = `Heard: "${said}" — locked in, waiting for timer...`; fb.className = 'feedback'; }
         };
-        rec.onerror = ()=> showSelfReport(targetText, info, buildCorrect, acceptList);
+        rec.onerror = ()=>{ clearTimeout(state.silenceTimer); state.silenceTimer=null; showSelfReport(targetText, info, buildCorrect, acceptList); };
         rec.onend = ()=> releaseSharedMic();
         rec.start();
       }catch(e){ showSelfReport(targetText, info, buildCorrect, acceptList); }
