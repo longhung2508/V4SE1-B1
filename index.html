@@ -1575,56 +1575,35 @@ function renderQuestion(){
 
   if(state.mode==='build'){
     const shuffled = [...item.chunks].sort(()=>Math.random()-0.5);
-    let picked = [];
-    let capturePhaseStarted = false;
     card.innerHTML = `
       <div class="mode-label">Sentence Build · Speaking</div>
       ${ringHtml}
       <div class="prompt-area">
-        <div class="hidden-hint">Arrange the word groups in order, then say the full sentence — one timer for the whole question (${info.time}s)</div>
-        <div class="chunk-answer" id="answerRow"></div>
-        <div class="divider"></div>
-        <div class="chunk-pool" id="poolRow"></div>
+        <div class="hidden-hint" id="hh">Listen to the word groups in random order, then say the full sentence in the correct order — one timer for the whole question (${info.time}s)</div>
       </div>
-      <div class="controls">
-        <button class="btn secondary" id="resetChunks">↺ Reset order</button>
-      </div>
+      <div class="voice-tag" id="voiceTag">🔊 Playing word groups...</div>
       <div class="hint-panel" id="hintPanel"></div>
       <div class="feedback" id="fb"></div>`;
     state.lastPlayedItem = { en:item.answer, vi:item.vi };
     updateHintPanel();
-    // ONE countdown for the entire question — arranging the chunks AND
-    // speaking both happen inside it; nothing the user clicks resets it.
-    // (Chunk clicks are inert until the pause overlay is hidden, i.e. until
-    // Start/Resume has actually kicked this question off.)
-    state.activateFn = ()=> startRing(info.time, ()=> finalizeSpeakingOnExpiry(item.answer, info));
-
-    function renderRows(){
-      document.getElementById('answerRow').innerHTML = picked.map(c=>`<div class="chunk">${c}</div>`).join('') || '<span class="hidden-hint">no chunks selected yet</span>';
-      const remaining = shuffled.filter(c=>!picked.includes(c));
-      document.getElementById('poolRow').innerHTML = remaining.map(c=>`<div class="chunk" data-c="${c}">${c}</div>`).join('');
-      document.querySelectorAll('#poolRow .chunk').forEach(el=>{
-        el.onclick = ()=>{
-          if(capturePhaseStarted) return; // arrangement locks in once speaking capture begins
-          picked.push(el.dataset.c); renderRows();
-          if(picked.length === item.chunks.length){
-            capturePhaseStarted = true;
-            const correctOrder = picked.join(' ') === item.chunks.join(' ');
-            const fb = document.getElementById('fb');
-            if(fb){
-              fb.textContent = correctOrder ? '✓ Correct order! Now say it aloud...' : `✗ Wrong order. Correct sentence: "${item.answer}" — say it aloud anyway to keep practicing.`;
-              fb.className = 'feedback ' + (correctOrder ? 'ok':'bad');
-            }
-            // Auto-advances into speaking capture — no confirm button to press.
-            setTimeout(()=> beginSpeakingCapture(item.answer, info, correctOrder), 1200);
-          }
-        };
+    // ONE countdown for the entire question — playing the shuffled word
+    // groups AND speaking both happen inside it. The word groups are heard
+    // in random order (never shown as clickable text, matching the real
+    // listening-only exam format); scoring compares the spoken sentence
+    // against the correct order via the same accuracy() check used
+    // elsewhere, so a correctly-reordered sentence scores a point and a
+    // wrong order does not.
+    state.activateFn = ()=>{
+      startRing(info.time, ()=> finalizeSpeakingOnExpiry(item.answer, info));
+      let buildOk = true;
+      speakSequential(shuffled, ()=>{
+        const vt = document.getElementById('voiceTag');
+        if(vt && buildOk) vt.textContent = '';
+        beginSpeakingCapture(item.answer, info, undefined, undefined);
+      }, status=>{
+        if(status!=='ok') buildOk = false;
+        applySpeechStatus('voiceTag', status);
       });
-    }
-    renderRows();
-    document.getElementById('resetChunks').onclick = ()=>{
-      if(capturePhaseStarted) return;
-      picked=[]; renderRows();
     };
   }
 
