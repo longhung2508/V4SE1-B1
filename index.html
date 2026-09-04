@@ -239,7 +239,7 @@
         <div class="eyebrow">V4SE</div>
         <h1>Reflex Training Room</h1>
       </div>
-      <button class="dash-fab" id="dashFab" title="Bảng điểm"><span style="font-size:20px;">📊</span><span>Điểm</span></button>
+      <button class="dash-fab" id="dashFab" title="Score dashboard"><span style="font-size:20px;">📊</span><span>Score</span></button>
     </div>
     <div class="skills-bar" id="skillsBar"></div>
     <div class="cefr-estimate" id="cefrEstimate"></div>
@@ -289,21 +289,21 @@
   <div class="dash-overlay" id="dashOverlay">
     <div class="dash-card">
       <button class="dash-close" id="dashClose">✕</button>
-      <h2>📊 Bảng điểm luyện tập</h2>
-      <div class="dash-sub">Theo dõi tiến độ 4 kỹ năng Versant B1 của bạn</div>
+      <h2>📊 Score Dashboard</h2>
+      <div class="dash-sub">Track your progress across the 4 Versant B1 skills</div>
       <div class="dash-overall">
         <div class="num" id="dashOverallPct">0%</div>
         <div>
-          <div class="lbl">Mức độ sẵn sàng B1</div>
-          <div class="dash-sub" style="margin:2px 0 0;" id="dashOverallSub">Chưa có dữ liệu</div>
+          <div class="lbl">B1 Readiness</div>
+          <div class="dash-sub" style="margin:2px 0 0;" id="dashOverallSub">No data yet</div>
         </div>
       </div>
       <div class="dash-grid" id="dashGrid"></div>
       <div class="dash-stats">
-        <span>Tổng câu đã luyện: <b id="dashTotalQ">0</b></span>
-        <span>Cập nhật: <b id="dashUpdated">—</b></span>
+        <span>Total practiced: <b id="dashTotalQ">0</b></span>
+        <span>Updated: <b id="dashUpdated">—</b></span>
       </div>
-      <button class="dash-reset" id="dashReset">Xoá thống kê &amp; luyện lại từ đầu</button>
+      <button class="dash-reset" id="dashReset">Reset stats &amp; start over</button>
     </div>
   </div>
   <div class="exam-banner" id="examBanner" style="display:none;"></div>
@@ -1684,25 +1684,25 @@ function renderDashboard(){
     const s = scores[key];
     sumC+=s.correct; sumT+=s.total;
     const pct = s.total? Math.round(100*s.correct/s.total):0;
-    return `<div class="dash-gauge">${gaugeSVG(pct,color)}<div class="g-lbl">${label}</div><div class="g-sub">${s.correct}/${s.total} câu</div></div>`;
+    return `<div class="dash-gauge">${gaugeSVG(pct,color)}<div class="g-lbl">${label}</div><div class="g-sub">${s.correct}/${s.total} q</div></div>`;
   }).join('');
   document.getElementById('dashGrid').innerHTML = grid;
   const overallPct = sumT? Math.round(100*sumC/sumT):0;
   document.getElementById('dashOverallPct').textContent = overallPct+'%';
   document.getElementById('dashOverallSub').textContent =
-    overallPct>=75 ? 'Rất tốt — gần đạt chuẩn B1!' :
-    overallPct>=50 ? 'Khá ổn — tiếp tục luyện tập' :
-    sumT>0 ? 'Mới bắt đầu — cố gắng thêm nhé' : 'Chưa có dữ liệu, hãy bắt đầu luyện tập';
+    overallPct>=75 ? 'Great progress — nearly B1 level!' :
+    overallPct>=50 ? 'Good progress — keep practicing' :
+    sumT>0 ? 'Just getting started — keep going' : 'No data yet — start practicing';
   document.getElementById('dashTotalQ').textContent = sumT;
   const upd = localStorage.getItem(SCORES_KEY+'_time');
-  document.getElementById('dashUpdated').textContent = upd ? new Date(upd).toLocaleString('vi-VN') : '—';
+  document.getElementById('dashUpdated').textContent = upd ? new Date(upd).toLocaleString('en-US') : '—';
 }
 
 document.getElementById('dashFab').addEventListener('click', ()=>{ renderDashboard(); document.getElementById('dashOverlay').classList.add('open'); });
 document.getElementById('dashClose').addEventListener('click', ()=> document.getElementById('dashOverlay').classList.remove('open'));
 document.getElementById('dashOverlay').addEventListener('click', (e)=>{ if(e.target.id==='dashOverlay') e.currentTarget.classList.remove('open'); });
 document.getElementById('dashReset').addEventListener('click', ()=>{
-  if(confirm('Xoá toàn bộ thống kê bảng điểm? Không thể hoàn tác.')){
+  if(confirm('Clear all score data? This cannot be undone.')){
     Object.keys(scores).forEach(k=>{ scores[k]={correct:0,total:0}; });
     saveScores(); renderSkillsBar(); renderDashboard();
   }
