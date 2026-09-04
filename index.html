@@ -189,10 +189,12 @@
   .lock-error{min-height:20px;color:var(--bad);font-size:13px;font-weight:600;margin-top:10px;}
 
 /* ===== Score Dashboard ===== */
-.dash-fab{position:fixed;right:16px;bottom:16px;z-index:500;width:52px;height:52px;border-radius:50%;
-  background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff;border:none;
-  box-shadow:0 6px 18px rgba(47,95,224,.35);font-size:22px;cursor:pointer;display:flex;
-  align-items:center;justify-content:center;}
+.header-top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;}
+.dash-fab{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:2px;min-width:64px;height:64px;padding:6px 10px;border-radius:14px;border:none;cursor:pointer;
+  background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff;font-size:20px;
+  box-shadow:0 6px 16px rgba(47,95,224,.28);}
+.dash-fab span{font-size:9px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;line-height:1.1;}
 .dash-overlay{position:fixed;inset:0;background:rgba(20,25,45,.55);backdrop-filter:blur(2px);
   z-index:600;display:none;align-items:center;justify-content:center;padding:16px;}
 .dash-overlay.open{display:flex;}
@@ -232,9 +234,12 @@
 </div>
 <div class="app" id="appRoot" style="display:none;">
   <header>
-    <div>
-      <div class="eyebrow">V4SE</div>
-      <h1>Reflex Training Room</h1>
+    <div class="header-top">
+      <div>
+        <div class="eyebrow">V4SE</div>
+        <h1>Reflex Training Room</h1>
+      </div>
+      <button class="dash-fab" id="dashFab" title="Bảng điểm"><span style="font-size:20px;">📊</span><span>Điểm</span></button>
     </div>
     <div class="skills-bar" id="skillsBar"></div>
     <div class="cefr-estimate" id="cefrEstimate"></div>
@@ -281,7 +286,6 @@
   <div class="hint-row"><button class="tab hint-tab" id="hintTab">💡 Hint / Answer</button></div>
   <div class="exam-row"><button class="tab exam-tab" id="examTab">🎓 V4SE EXAM — Full Timed Simulation</button></div>
 
-  <button class="dash-fab" id="dashFab" title="Bảng điểm">📊</button>
   <div class="dash-overlay" id="dashOverlay">
     <div class="dash-card">
       <button class="dash-close" id="dashClose">✕</button>
