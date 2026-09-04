@@ -226,10 +226,11 @@
     <div class="lock-icon">🔒</div>
     <div class="eyebrow">V4SE1-B1</div>
     <h1 style="margin-bottom:4px;">Reflex Training Room</h1>
-    <p class="lock-sub">Enter the access password to start your training session.</p>
-    <input type="password" id="lockInput" placeholder="Password" autocomplete="off">
+    <p class="lock-sub">Enter your access code to start your training session.</p>
+    <input type="text" id="lockInput" placeholder="Access code (e.g. V4SE1-XXXX-XXXX)" autocomplete="off" style="text-transform:uppercase;">
     <button class="btn" id="lockSubmit" style="width:100%;margin-top:10px;">Unlock</button>
     <div class="lock-error" id="lockError"></div>
+    <div id="lockChecking" style="display:none;font-size:12px;color:var(--muted);margin-top:8px;">Checking access…</div>
   </div>
 </div>
 <div class="app" id="appRoot" style="display:none;">
@@ -2637,8 +2638,19 @@ function initApp(){
 // NOTE: this is a lightweight client-side gate for a private, single-file
 // training app — the password below is visible to anyone who views the
 // page source. It stops casual/accidental access, not a determined user.
-const ACCESS_PASSWORD = "versantb1";
-const UNLOCK_KEY = "versant_b1_unlocked";
+const APP_ID = "App1";
+const VERIFY_URL = "https://script.google.com/macros/s/AKfycbz8FYtzsQuBosu4NmpJaGf5EgeOMivqcdbd8r6Yig67BPlfXug_vGZnXRalMv8yqrnG/exec";
+const CODE_KEY = APP_ID.toLowerCase() + "_access_code";
+
+function getDeviceId(){
+  let id = null;
+  try{ id = localStorage.getItem('v4se_device_id'); }catch(e){}
+  if(!id){
+    id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2,10);
+    try{ localStorage.setItem('v4se_device_id', id); }catch(e){}
+  }
+  return id;
+}
 
 function unlockApp(){
   document.getElementById('lockScreen').style.display = 'none';
@@ -2647,25 +2659,51 @@ function unlockApp(){
   initApp();
 }
 
+function showLockError(msg){
+  document.getElementById('lockError').textContent = msg;
+  document.getElementById('lockChecking').style.display = 'none';
+  document.getElementById('lockSubmit').disabled = false;
+}
+
+function verifyCode(code, isAuto){
+  const device = getDeviceId();
+  const url = VERIFY_URL + '?app=' + encodeURIComponent(APP_ID) + '&code=' + encodeURIComponent(code) + '&device=' + encodeURIComponent(device);
+  document.getElementById('lockChecking').style.display = 'block';
+  document.getElementById('lockError').textContent = '';
+  document.getElementById('lockSubmit').disabled = true;
+  fetch(url).then(r=>r.json()).then(data=>{
+    if(data.valid){
+      try{ localStorage.setItem(CODE_KEY, code); }catch(e){}
+      unlockApp();
+    } else {
+      try{ localStorage.removeItem(CODE_KEY); }catch(e){}
+      let msg = 'Invalid access code. Please check and try again.';
+      if(data.reason === 'expired') msg = 'This access code has expired. Please contact your instructor.';
+      if(data.reason === 'revoked') msg = 'This access code has been revoked. Please contact your instructor.';
+      if(data.reason === 'device_limit') msg = 'This code has reached its device limit. Please contact your instructor.';
+      if(data.reason === 'locked') msg = 'Too many attempts. Please wait a few minutes and try again.';
+      document.getElementById('lockChecking').style.display = 'none';
+      document.getElementById('lockSubmit').disabled = false;
+      showLockError(msg);
+    }
+  }).catch(()=>{
+    showLockError('Network error. Please check your connection and try again.');
+  });
+}
+
 function tryUnlock(){
-  const val = document.getElementById('lockInput').value;
-  if(val === ACCESS_PASSWORD){
-    try{ localStorage.setItem(UNLOCK_KEY, 'yes'); }catch(e){}
-    unlockApp();
-  } else {
-    document.getElementById('lockError').textContent = 'Incorrect password. Please try again.';
-    document.getElementById('lockInput').value = '';
-    document.getElementById('lockInput').focus();
-  }
+  const val = document.getElementById('lockInput').value.trim().toUpperCase();
+  if(!val){ showLockError('Please enter your access code.'); return; }
+  verifyCode(val, false);
 }
 
 document.getElementById('lockSubmit').addEventListener('click', tryUnlock);
 document.getElementById('lockInput').addEventListener('keydown', e=>{ if(e.key==='Enter') tryUnlock(); });
 
-let alreadyUnlocked = false;
-try{ alreadyUnlocked = localStorage.getItem(UNLOCK_KEY) === 'yes'; }catch(e){}
-if(alreadyUnlocked){
-  unlockApp();
+let savedCode = null;
+try{ savedCode = localStorage.getItem(CODE_KEY); }catch(e){}
+if(savedCode){
+  verifyCode(savedCode, true);
 } else {
   document.getElementById('lockInput').focus();
 }
