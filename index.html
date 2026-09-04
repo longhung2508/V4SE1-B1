@@ -187,6 +187,35 @@
   .lock-card input[type=password]{width:100%;background:#F7F9FD;border:1px solid var(--line);color:var(--text);border-radius:10px;padding:12px 14px;font-size:15px;font-family:'Inter',system-ui,sans-serif;text-align:center;letter-spacing:.05em;}
   .lock-card input[type=password]:focus{outline:none;border-color:var(--primary);}
   .lock-error{min-height:20px;color:var(--bad);font-size:13px;font-weight:600;margin-top:10px;}
+
+/* ===== Score Dashboard ===== */
+.dash-fab{position:fixed;right:16px;bottom:16px;z-index:500;width:52px;height:52px;border-radius:50%;
+  background:linear-gradient(135deg,var(--primary),var(--primary-2));color:#fff;border:none;
+  box-shadow:0 6px 18px rgba(47,95,224,.35);font-size:22px;cursor:pointer;display:flex;
+  align-items:center;justify-content:center;}
+.dash-overlay{position:fixed;inset:0;background:rgba(20,25,45,.55);backdrop-filter:blur(2px);
+  z-index:600;display:none;align-items:center;justify-content:center;padding:16px;}
+.dash-overlay.open{display:flex;}
+.dash-card{position:relative;background:var(--panel);border-radius:18px;max-width:420px;width:100%;
+  padding:22px 20px 20px;box-shadow:0 20px 60px rgba(20,25,45,.35);max-height:88vh;overflow-y:auto;}
+.dash-card h2{margin:0 0 4px;font-size:20px;font-weight:800;color:var(--text);}
+.dash-sub{font-size:12px;color:var(--muted);margin-bottom:16px;}
+.dash-close{position:absolute;top:14px;right:14px;background:none;border:none;font-size:20px;
+  color:var(--muted);cursor:pointer;}
+.dash-overall{display:flex;align-items:center;gap:16px;background:var(--gold-bg);
+  border:1px solid #F0DDB4;border-radius:14px;padding:14px 16px;margin-bottom:18px;}
+.dash-overall .num{font-size:30px;font-weight:800;color:var(--gold);}
+.dash-overall .lbl{font-size:12px;color:var(--muted);font-weight:600;text-transform:uppercase;letter-spacing:.04em;}
+.dash-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+.dash-gauge{background:var(--panel-2);border:1px solid var(--line);border-radius:14px;padding:12px;text-align:center;}
+.dash-gauge svg{display:block;margin:0 auto 6px;}
+.dash-gauge .g-lbl{font-size:12px;font-weight:700;color:var(--text);}
+.dash-gauge .g-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.dash-stats{display:flex;justify-content:space-between;background:var(--panel-2);border:1px solid var(--line);
+  border-radius:12px;padding:10px 14px;font-size:12px;color:var(--muted);}
+.dash-stats b{color:var(--text);font-size:14px;}
+.dash-reset{margin-top:14px;width:100%;padding:10px;border-radius:10px;border:1px solid var(--line);
+  background:var(--panel);color:var(--bad);font-weight:700;font-size:13px;cursor:pointer;}
 </style>
 </head>
 <body>
@@ -251,6 +280,28 @@
   </nav>
   <div class="hint-row"><button class="tab hint-tab" id="hintTab">💡 Hint / Answer</button></div>
   <div class="exam-row"><button class="tab exam-tab" id="examTab">🎓 V4SE EXAM — Full Timed Simulation</button></div>
+
+  <button class="dash-fab" id="dashFab" title="Bảng điểm">📊</button>
+  <div class="dash-overlay" id="dashOverlay">
+    <div class="dash-card">
+      <button class="dash-close" id="dashClose">✕</button>
+      <h2>📊 Bảng điểm luyện tập</h2>
+      <div class="dash-sub">Theo dõi tiến độ 4 kỹ năng Versant B1 của bạn</div>
+      <div class="dash-overall">
+        <div class="num" id="dashOverallPct">0%</div>
+        <div>
+          <div class="lbl">Mức độ sẵn sàng B1</div>
+          <div class="dash-sub" style="margin:2px 0 0;" id="dashOverallSub">Chưa có dữ liệu</div>
+        </div>
+      </div>
+      <div class="dash-grid" id="dashGrid"></div>
+      <div class="dash-stats">
+        <span>Tổng câu đã luyện: <b id="dashTotalQ">0</b></span>
+        <span>Cập nhật: <b id="dashUpdated">—</b></span>
+      </div>
+      <button class="dash-reset" id="dashReset">Xoá thống kê &amp; luyện lại từ đầu</button>
+    </div>
+  </div>
   <div class="exam-banner" id="examBanner" style="display:none;"></div>
 
   <main class="stage">
@@ -1330,6 +1381,8 @@ const scores = {
   reading:{correct:0,total:0},
   writing:{correct:0,total:0},
 };
+const SCORES_KEY = 'v4se1_scores_v1';
+loadScores();
 
 let state = {
   mode:'repeat', order:[], idx:0, timer:null, ringTimer:null, recognizing:false, hintOpen:false,
@@ -1586,7 +1639,71 @@ function applySpeechStatus(elId, status, detail){
 function recordScore(skill, correct){
   scores[skill].total++; if(correct) scores[skill].correct++;
   renderSkillsBar();
+  saveScores();
 }
+
+function gaugeSVG(pct,color){
+  const r=28,c=2*Math.PI*r,off=c-(pct/100)*c;
+  return `<svg width="72" height="72" viewBox="0 0 72 72">
+    <circle cx="36" cy="36" r="${r}" fill="none" stroke="#E2E6F0" stroke-width="8"/>
+    <circle cx="36" cy="36" r="${r}" fill="none" stroke="${color}" stroke-width="8" stroke-linecap="round"
+      stroke-dasharray="${c}" stroke-dashoffset="${off}" transform="rotate(-90 36 36)"/>
+    <text x="36" y="41" text-anchor="middle" font-size="15" font-weight="800" fill="#1C2333">${pct}%</text>
+  </svg>`;
+}
+
+function loadScores(){
+  try{
+    const raw = localStorage.getItem(SCORES_KEY);
+    if(raw){
+      const saved = JSON.parse(raw);
+      Object.keys(scores).forEach(k=>{ if(saved[k]) scores[k]=saved[k]; });
+    }
+  }catch(e){}
+}
+function saveScores(){
+  try{
+    localStorage.setItem(SCORES_KEY, JSON.stringify(scores));
+    localStorage.setItem(SCORES_KEY+'_time', new Date().toISOString());
+  }catch(e){}
+}
+
+function renderDashboard(){
+  const defs = [
+    ['speaking','🗣 Speaking','#E2601F'],
+    ['listening','👂 Listening','#0E86A8'],
+    ['reading','📖 Reading','#7141C9'],
+    ['writing','✍️ Writing','#12915E'],
+  ];
+  let sumC=0,sumT=0;
+  const grid = defs.map(([key,label,color])=>{
+    const s = scores[key];
+    sumC+=s.correct; sumT+=s.total;
+    const pct = s.total? Math.round(100*s.correct/s.total):0;
+    return `<div class="dash-gauge">${gaugeSVG(pct,color)}<div class="g-lbl">${label}</div><div class="g-sub">${s.correct}/${s.total} câu</div></div>`;
+  }).join('');
+  document.getElementById('dashGrid').innerHTML = grid;
+  const overallPct = sumT? Math.round(100*sumC/sumT):0;
+  document.getElementById('dashOverallPct').textContent = overallPct+'%';
+  document.getElementById('dashOverallSub').textContent =
+    overallPct>=75 ? 'Rất tốt — gần đạt chuẩn B1!' :
+    overallPct>=50 ? 'Khá ổn — tiếp tục luyện tập' :
+    sumT>0 ? 'Mới bắt đầu — cố gắng thêm nhé' : 'Chưa có dữ liệu, hãy bắt đầu luyện tập';
+  document.getElementById('dashTotalQ').textContent = sumT;
+  const upd = localStorage.getItem(SCORES_KEY+'_time');
+  document.getElementById('dashUpdated').textContent = upd ? new Date(upd).toLocaleString('vi-VN') : '—';
+}
+
+document.getElementById('dashFab').addEventListener('click', ()=>{ renderDashboard(); document.getElementById('dashOverlay').classList.add('open'); });
+document.getElementById('dashClose').addEventListener('click', ()=> document.getElementById('dashOverlay').classList.remove('open'));
+document.getElementById('dashOverlay').addEventListener('click', (e)=>{ if(e.target.id==='dashOverlay') e.currentTarget.classList.remove('open'); });
+document.getElementById('dashReset').addEventListener('click', ()=>{
+  if(confirm('Xoá toàn bộ thống kê bảng điểm? Không thể hoàn tác.')){
+    Object.keys(scores).forEach(k=>{ scores[k]={correct:0,total:0}; });
+    saveScores(); renderSkillsBar(); renderDashboard();
+  }
+});
+
 
 // Normally shows cumulative practice % per skill. After finishing a V4SE
 // EXAM run, examResultData holds that attempt's own correct/total per skill
